@@ -2,12 +2,13 @@ import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { DocumentDetail } from './DocumentDetail';
 import type { Metadata } from 'next';
+import type { DocumentWithCategory } from '@/types/database';
 
 interface PageProps {
     params: Promise<{ slug: string }>;
 }
 
-async function getDocument(slug: string) {
+async function getDocument(slug: string): Promise<DocumentWithCategory | null> {
     const { data, error } = await supabase
         .from('documents')
         .select('*, categories(*)')
@@ -19,7 +20,7 @@ async function getDocument(slug: string) {
         return null;
     }
 
-    return data;
+    return data as DocumentWithCategory;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
