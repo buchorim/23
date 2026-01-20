@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Settings, Type, Image as ImageIcon, Megaphone, Upload, Trash2, Check, BarChart3 } from 'lucide-react';
+import { X, Settings, Type, Image as ImageIcon, Megaphone, Upload, Trash2, Check, BarChart3, Shield } from 'lucide-react';
 import { TrafficDashboard } from './TrafficDashboard';
+import { TrafficProtectionDashboard } from './TrafficProtectionDashboard';
 
 interface FontSetting {
     name: string;
@@ -32,7 +33,7 @@ interface AdminSettingsModalProps {
 }
 
 export function AdminSettingsModal({ isOpen, onClose }: AdminSettingsModalProps) {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'font' | 'icon' | 'announcement'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'protection' | 'font' | 'icon' | 'announcement'>('dashboard');
     const [font, setFont] = useState<FontSetting>({ name: 'Inter', url: null, isCustom: false });
     const [siteIcon, setSiteIcon] = useState<string | null>(null);
     const [announcement, setAnnouncement] = useState<Announcement | null>(null);
@@ -270,6 +271,7 @@ export function AdminSettingsModal({ isOpen, onClose }: AdminSettingsModalProps)
                 }}>
                     {[
                         { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+                        { id: 'protection', label: 'Protection', icon: Shield },
                         { id: 'announcement', label: 'Pengumuman', icon: Megaphone },
                         { id: 'font', label: 'Font', icon: Type },
                         { id: 'icon', label: 'Icon', icon: ImageIcon },
@@ -309,6 +311,11 @@ export function AdminSettingsModal({ isOpen, onClose }: AdminSettingsModalProps)
                             {/* Dashboard Tab */}
                             {activeTab === 'dashboard' && (
                                 <TrafficDashboard />
+                            )}
+
+                            {/* Protection Tab */}
+                            {activeTab === 'protection' && (
+                                <TrafficProtectionDashboard />
                             )}
 
                             {/* Announcement Tab */}
