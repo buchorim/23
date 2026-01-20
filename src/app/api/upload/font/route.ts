@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { checkAdminDbAvailable, dbErrorResponse } from '@/lib/supabase';
 import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 // POST /api/upload/font - Upload custom font (WOFF2 only)
@@ -7,6 +7,11 @@ export async function POST(request: NextRequest) {
     const auth = checkAdminAuth(request);
     if (!auth.authenticated) {
         return unauthorizedResponse(auth.error);
+    }
+
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
     }
 
     try {
@@ -35,22 +40,23 @@ export async function POST(request: NextRequest) {
         const MAX_SIZE = 2 * 1024 * 1024;
         if (file.size > MAX_SIZE) {
             return NextResponse.json(
-                { error: 'Ukuran font maksimal 2MB' },
+                { error: 'Ukuran file font terlalu besar. Maksimal 2MB.' },
                 { status: 400 }
             );
         }
 
-        // Get font name from filename
-        const fontName = file.name.replace('.woff2', '').replace(/[-_]/g, ' ');
+        // Generate unique filename
+        const timestamp = Date.now();
+        const safeName = file.name
+            .replace(/[^a-zA-Z0-9.-]/g, '_')
+            .toLowerCase();
+        const fileName = `fonts/${timestamp}-${safeName}`;
 
         // Upload to Supabase Storage
-        const adminClient = createAdminClient();
         const arrayBuffer = await file.arrayBuffer();
         const buffer = new Uint8Array(arrayBuffer);
 
-        const fileName = `fonts/${Date.now()}-${file.name}`;
-
-        const { data, error } = await adminClient.storage
+        const { data, error } = await db.client.storage
             .from('media')
             .upload(fileName, buffer, {
                 contentType: 'font/woff2',
@@ -58,40 +64,20 @@ export async function POST(request: NextRequest) {
             });
 
         if (error) {
-            console.error('Upload error:', error);
+            console.error('Font upload error:', error);
             throw error;
         }
 
         // Get public URL
-        const { data: urlData } = adminClient.storage
+        const { data: urlData } = db.client.storage
             .from('media')
             .getPublicUrl(data.path);
 
-        // Update site_settings with new font
-        const fontValue = {
-            name: fontName,
-            url: urlData.publicUrl,
-            isCustom: true,
-        };
-
-        const upsertData = {
-            key: 'font',
-            value: fontValue,
-            updated_at: new Date().toISOString(),
-        };
-        await adminClient
-            .from('site_settings')
-            .upsert(upsertData as never, { onConflict: 'key' });
-
         return NextResponse.json({
-            font: fontValue,
-            message: 'Font berhasil diupload dan diaktifkan',
+            url: urlData.publicUrl,
+            filename: file.name,
         });
     } catch (error) {
-        console.error('Error uploading font:', error);
-        return NextResponse.json(
-            { error: 'Gagal mengupload font' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }

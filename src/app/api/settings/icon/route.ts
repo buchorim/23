@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, supabase } from '@/lib/supabase';
+import { checkDbAvailable, checkAdminDbAvailable, dbErrorResponse } from '@/lib/supabase';
 import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 // GET - Fetch site icon
 export async function GET() {
+    const db = checkDbAvailable();
+    if (!db.available) {
+        return NextResponse.json({ icon: null });
+    }
+
     try {
-        const { data, error } = await supabase
+        const { data, error } = await db.client
             .from('site_settings')
             .select('value')
             .eq('key', 'site_icon')
@@ -29,6 +34,11 @@ export async function POST(request: NextRequest) {
         return unauthorizedResponse(auth.error);
     }
 
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
+    }
+
     try {
         const body = await request.json();
         const url = body.url as string;
@@ -40,14 +50,13 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const adminClient = createAdminClient();
         const upsertData = {
             key: 'site_icon',
             value: { url },
             updated_at: new Date().toISOString(),
         };
 
-        const { error } = await adminClient
+        const { error } = await db.client
             .from('site_settings')
             .upsert(upsertData as never, { onConflict: 'key' });
 
@@ -55,10 +64,6 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ icon: { url } });
     } catch (error) {
-        console.error('Error saving site icon:', error);
-        return NextResponse.json(
-            { error: 'Gagal menyimpan icon' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }

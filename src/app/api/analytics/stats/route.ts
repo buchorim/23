@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { checkAdminDbAvailable, dbErrorResponse } from '@/lib/supabase';
 import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 interface StatsRow {
@@ -17,11 +17,14 @@ export async function GET(request: NextRequest) {
         return unauthorizedResponse(auth.error);
     }
 
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
+    }
+
     try {
         const { searchParams } = new URL(request.url);
-        const period = searchParams.get('period') || '7d'; // 7d, 30d, all
-
-        const adminClient = createAdminClient();
+        const period = searchParams.get('period') || '7d';
 
         // Calculate date range
         let startDate: Date;
@@ -34,12 +37,12 @@ export async function GET(request: NextRequest) {
             case 'all':
                 startDate = new Date(0);
                 break;
-            default: // 7d
+            default:
                 startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         }
 
         // Fetch page views
-        const { data: views, error } = await adminClient
+        const { data: views, error } = await db.client
             .from('page_views')
             .select('page_path, visitor_id, created_at, duration_seconds, device_type')
             .gte('created_at', startDate.toISOString())
@@ -70,7 +73,7 @@ export async function GET(request: NextRequest) {
             .slice(0, 5)
             .map(([path, count]) => ({ path, count }));
 
-        // Daily views for chart (last 7 days)
+        // Daily views for chart
         const dailyViews: Record<string, number> = {};
         const dailyVisitors: Record<string, Set<string>> = {};
 
@@ -95,11 +98,11 @@ export async function GET(request: NextRequest) {
             visitors: dailyVisitors[date]?.size || 0,
         }));
 
-        // Calculate growth (compare this week vs last week)
+        // Growth calculation
         const thisWeekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         const lastWeekStart = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-        const { data: lastWeekViews } = await adminClient
+        const { data: lastWeekViews } = await db.client
             .from('page_views')
             .select('id')
             .gte('created_at', lastWeekStart.toISOString())
@@ -124,10 +127,6 @@ export async function GET(request: NextRequest) {
             chartData,
         });
     } catch (error) {
-        console.error('Error fetching analytics:', error);
-        return NextResponse.json(
-            { error: 'Failed to fetch analytics' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }

@@ -1,56 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { checkAdminDbAvailable } from '@/lib/supabase';
 
-// POST - Track page view
+// POST - Track page view (public endpoint, no auth required)
 export async function POST(request: NextRequest) {
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        // Silently fail if database not available
+        return NextResponse.json({ success: false, reason: 'db_unavailable' });
+    }
+
     try {
         const body = await request.json();
         const {
             page_path,
-            page_title,
             visitor_id,
-            session_id,
             referrer,
+            device_type,
+            browser,
+            os,
+            country,
             duration_seconds,
         } = body;
 
-        if (!page_path || !visitor_id || !session_id) {
+        if (!page_path || !visitor_id) {
             return NextResponse.json(
-                { error: 'Missing required fields' },
+                { error: 'page_path and visitor_id required' },
                 { status: 400 }
             );
         }
 
-        // Get device type from user agent
-        const userAgent = request.headers.get('user-agent') || '';
-        const deviceType = /mobile|android|iphone|ipad/i.test(userAgent)
-            ? 'mobile'
-            : 'desktop';
-
-        const adminClient = createAdminClient();
         const insertData = {
             page_path,
-            page_title: page_title || null,
             visitor_id,
-            session_id,
             referrer: referrer || null,
-            user_agent: userAgent,
-            device_type: deviceType,
+            device_type: device_type || 'unknown',
+            browser: browser || null,
+            os: os || null,
+            country: country || null,
             duration_seconds: duration_seconds || 0,
         };
 
-        const { error } = await adminClient
+        const { error } = await db.client
             .from('page_views')
             .insert(insertData as never);
 
-        if (error) throw error;
+        if (error) {
+            console.error('Page view track error:', error);
+            return NextResponse.json({ success: false, reason: 'insert_failed' });
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error tracking page view:', error);
-        return NextResponse.json(
-            { error: 'Failed to track' },
-            { status: 500 }
-        );
+        console.error('Track error:', error);
+        return NextResponse.json({ success: false, reason: 'error' });
     }
 }

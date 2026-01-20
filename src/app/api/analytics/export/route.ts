@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { checkAdminDbAvailable, dbErrorResponse } from '@/lib/supabase';
 import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 // GET - Export analytics data as CSV
@@ -9,19 +9,22 @@ export async function GET(request: NextRequest) {
         return unauthorizedResponse(auth.error);
     }
 
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
+    }
+
     try {
         const { searchParams } = new URL(request.url);
-        const type = searchParams.get('type') || 'current'; // current, archive, all
+        const type = searchParams.get('type') || 'current';
         const format = searchParams.get('format') || 'csv';
         const startDate = searchParams.get('start');
         const endDate = searchParams.get('end');
 
-        const adminClient = createAdminClient();
-
         let data: Record<string, unknown>[] = [];
 
         if (type === 'current' || type === 'all') {
-            let query = adminClient
+            let query = db.client
                 .from('page_views')
                 .select('*')
                 .order('created_at', { ascending: false });
@@ -39,73 +42,55 @@ export async function GET(request: NextRequest) {
         }
 
         if (type === 'archive' || type === 'all') {
-            let query = adminClient
+            let archiveQuery = db.client
                 .from('page_views_archive')
                 .select('*')
                 .order('created_at', { ascending: false });
 
             if (startDate) {
-                query = query.gte('created_at', startDate);
+                archiveQuery = archiveQuery.gte('created_at', startDate);
             }
             if (endDate) {
-                query = query.lte('created_at', endDate);
+                archiveQuery = archiveQuery.lte('created_at', endDate);
             }
 
-            const { data: archiveData, error } = await query;
-            if (!error && archiveData) {
-                data = [...data, ...archiveData.map(row => ({ ...(row as Record<string, unknown>), is_archived: true }))];
+            const { data: archiveData } = await archiveQuery;
+            if (archiveData) {
+                data = [...data, ...archiveData];
             }
         }
 
         if (format === 'json') {
-            return NextResponse.json({
-                data,
-                count: data.length,
-                type,
-                exported_at: new Date().toISOString(),
-            });
+            return NextResponse.json({ data, count: data.length });
         }
 
-        // Generate CSV
+        // CSV format
         if (data.length === 0) {
             return new NextResponse('No data to export', { status: 404 });
         }
 
-        const headers = [
-            'id', 'page_path', 'page_title', 'visitor_id', 'session_id',
-            'referrer', 'device_type', 'duration_seconds', 'created_at', 'is_archived'
-        ];
-
+        const headers = Object.keys(data[0]);
         const csvRows = [
             headers.join(','),
             ...data.map(row =>
                 headers.map(h => {
-                    const val = row[h as keyof typeof row];
+                    const val = row[h];
                     if (val === null || val === undefined) return '';
-                    const str = String(val);
-                    // Escape quotes and wrap in quotes if contains comma
-                    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                        return `"${str.replace(/"/g, '""')}"`;
+                    if (typeof val === 'string' && val.includes(',')) {
+                        return `"${val.replace(/"/g, '""')}"`;
                     }
-                    return str;
+                    return String(val);
                 }).join(',')
             )
         ];
 
-        const csv = csvRows.join('\n');
-        const filename = `analytics_${type}_${new Date().toISOString().split('T')[0]}.csv`;
-
-        return new NextResponse(csv, {
+        return new NextResponse(csvRows.join('\n'), {
             headers: {
                 'Content-Type': 'text/csv',
-                'Content-Disposition': `attachment; filename="${filename}"`,
+                'Content-Disposition': `attachment; filename="analytics_${type}_${new Date().toISOString().split('T')[0]}.csv"`,
             },
         });
     } catch (error) {
-        console.error('Error exporting analytics:', error);
-        return NextResponse.json(
-            { error: 'Failed to export analytics' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }

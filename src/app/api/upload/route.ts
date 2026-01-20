@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { checkAdminDbAvailable, dbErrorResponse } from '@/lib/supabase';
 import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 // POST /api/upload - Upload file ke Supabase Storage
@@ -7,6 +7,11 @@ export async function POST(request: NextRequest) {
     const auth = checkAdminAuth(request);
     if (!auth.authenticated) {
         return unauthorizedResponse(auth.error);
+    }
+
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
     }
 
     try {
@@ -32,18 +37,16 @@ export async function POST(request: NextRequest) {
 
         // Generate unique filename
         const timestamp = Date.now();
-        const extension = file.name.split('.').pop();
         const safeName = file.name
             .replace(/[^a-zA-Z0-9.-]/g, '_')
             .toLowerCase();
         const fileName = `${folder}/${timestamp}-${safeName}`;
 
         // Upload to Supabase Storage
-        const adminClient = createAdminClient();
         const arrayBuffer = await file.arrayBuffer();
         const buffer = new Uint8Array(arrayBuffer);
 
-        const { data, error } = await adminClient.storage
+        const { data, error } = await db.client.storage
             .from('media')
             .upload(fileName, buffer, {
                 contentType: file.type,
@@ -56,7 +59,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get public URL
-        const { data: urlData } = adminClient.storage
+        const { data: urlData } = db.client.storage
             .from('media')
             .getPublicUrl(data.path);
 
@@ -67,10 +70,6 @@ export async function POST(request: NextRequest) {
             type: file.type,
         });
     } catch (error) {
-        console.error('Error uploading file:', error);
-        return NextResponse.json(
-            { error: 'Gagal mengupload file' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }

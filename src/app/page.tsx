@@ -10,6 +10,7 @@ import { ToastContainer } from '@/components/Toast';
 import { ToastProvider, useToast } from '@/hooks/useToast';
 import { useAdmin } from '@/hooks/useAdmin';
 import { IconPicker, IconByName } from '@/components/IconPicker';
+import { getAuthHeaders } from '@/lib/api';
 import type { Category, DocumentWithCategory } from '@/types/database';
 
 function HomePage() {
@@ -97,7 +98,7 @@ function HomePage() {
 
       const res = await fetch('/api/documents', {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(body),
       });
 
@@ -127,7 +128,7 @@ function HomePage() {
 
       const res = await fetch('/api/categories', {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(body),
       });
 
@@ -154,6 +155,7 @@ function HomePage() {
     try {
       const res = await fetch(`/api/documents?id=${deletingDoc.id}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       });
 
       if (res.ok) {
@@ -178,6 +180,7 @@ function HomePage() {
     try {
       const res = await fetch(`/api/categories?id=${deletingCat.id}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       });
 
       if (res.ok) {

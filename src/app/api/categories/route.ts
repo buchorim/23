@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, supabase } from '@/lib/supabase';
+import { checkDbAvailable, checkAdminDbAvailable, dbErrorResponse } from '@/lib/supabase';
 import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 // GET /api/categories - Ambil semua kategori
 export async function GET() {
+    const db = checkDbAvailable();
+    if (!db.available) {
+        return db.response;
+    }
+
     try {
-        const { data, error } = await supabase
+        const { data, error } = await db.client
             .from('categories')
             .select('*')
             .order('display_order', { ascending: true });
@@ -14,11 +19,7 @@ export async function GET() {
 
         return NextResponse.json({ categories: data });
     } catch (error) {
-        console.error('Error fetching categories:', error);
-        return NextResponse.json(
-            { error: 'Gagal memuat kategori' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }
 
@@ -27,6 +28,11 @@ export async function POST(request: NextRequest) {
     const auth = checkAdminAuth(request);
     if (!auth.authenticated) {
         return unauthorizedResponse(auth.error);
+    }
+
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
     }
 
     try {
@@ -42,10 +48,9 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const adminClient = createAdminClient();
         const insertData = { name, slug, icon };
 
-        const { data, error } = await adminClient
+        const { data, error } = await db.client
             .from('categories')
             .insert(insertData as never)
             .select()
@@ -61,13 +66,9 @@ export async function POST(request: NextRequest) {
             throw error;
         }
 
-        return NextResponse.json({ category: data }, { status: 201 });
+        return NextResponse.json({ category: data });
     } catch (error) {
-        console.error('Error creating category:', error);
-        return NextResponse.json(
-            { error: 'Gagal membuat kategori' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }
 
@@ -76,6 +77,11 @@ export async function PATCH(request: NextRequest) {
     const auth = checkAdminAuth(request);
     if (!auth.authenticated) {
         return unauthorizedResponse(auth.error);
+    }
+
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
     }
 
     try {
@@ -95,8 +101,7 @@ export async function PATCH(request: NextRequest) {
             );
         }
 
-        const adminClient = createAdminClient();
-        const { data, error } = await adminClient
+        const { data, error } = await db.client
             .from('categories')
             .update(updateData as never)
             .eq('id', id)
@@ -107,11 +112,7 @@ export async function PATCH(request: NextRequest) {
 
         return NextResponse.json({ category: data });
     } catch (error) {
-        console.error('Error updating category:', error);
-        return NextResponse.json(
-            { error: 'Gagal memperbarui kategori' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }
 
@@ -120,6 +121,11 @@ export async function DELETE(request: NextRequest) {
     const auth = checkAdminAuth(request);
     if (!auth.authenticated) {
         return unauthorizedResponse(auth.error);
+    }
+
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
     }
 
     try {
@@ -133,10 +139,8 @@ export async function DELETE(request: NextRequest) {
             );
         }
 
-        const adminClient = createAdminClient();
-
         // Check if category has documents
-        const { count } = await adminClient
+        const { count } = await db.client
             .from('documents')
             .select('*', { count: 'exact', head: true })
             .eq('category_id', id);
@@ -148,7 +152,7 @@ export async function DELETE(request: NextRequest) {
             );
         }
 
-        const { error } = await adminClient
+        const { error } = await db.client
             .from('categories')
             .delete()
             .eq('id', id);
@@ -157,10 +161,6 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error deleting category:', error);
-        return NextResponse.json(
-            { error: 'Gagal menghapus kategori' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }

@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { checkDbAvailable, checkAdminDbAvailable, dbErrorResponse } from '@/lib/supabase';
 import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 // GET - Fetch all user icons
 export async function GET() {
+    const db = checkDbAvailable();
+    if (!db.available) {
+        return NextResponse.json({ icons: [] });
+    }
+
     try {
-        const { data, error } = await supabase
+        const { data, error } = await db.client
             .from('user_icons')
             .select('*')
             .order('created_at', { ascending: false });
@@ -20,10 +20,7 @@ export async function GET() {
         return NextResponse.json({ icons: data || [] });
     } catch (error) {
         console.error('Error fetching user icons:', error);
-        return NextResponse.json(
-            { error: 'Gagal memuat icon' },
-            { status: 500 }
-        );
+        return NextResponse.json({ icons: [] });
     }
 }
 
@@ -32,6 +29,11 @@ export async function POST(request: NextRequest) {
     const auth = checkAdminAuth(request);
     if (!auth.authenticated) {
         return unauthorizedResponse(auth.error);
+    }
+
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
     }
 
     try {
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
         }
 
         const insertData = { name: name as string, url: url as string };
-        const { data, error } = await supabase
+        const { data, error } = await db.client
             .from('user_icons')
             .insert(insertData as never)
             .select()
@@ -56,11 +58,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ icon: data });
     } catch (error) {
-        console.error('Error adding user icon:', error);
-        return NextResponse.json(
-            { error: 'Gagal menyimpan icon' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }
 
@@ -69,6 +67,11 @@ export async function DELETE(request: NextRequest) {
     const auth = checkAdminAuth(request);
     if (!auth.authenticated) {
         return unauthorizedResponse(auth.error);
+    }
+
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
     }
 
     try {
@@ -82,7 +85,7 @@ export async function DELETE(request: NextRequest) {
             );
         }
 
-        const { error } = await supabase
+        const { error } = await db.client
             .from('user_icons')
             .delete()
             .eq('id', id);
@@ -91,10 +94,6 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error deleting user icon:', error);
-        return NextResponse.json(
-            { error: 'Gagal menghapus icon' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }

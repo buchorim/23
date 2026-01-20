@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, supabase } from '@/lib/supabase';
+import { checkDbAvailable, checkAdminDbAvailable, dbErrorResponse } from '@/lib/supabase';
 import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 // GET /api/documents - Ambil dokumen dengan filter dan search
 export async function GET(request: NextRequest) {
+    const db = checkDbAvailable();
+    if (!db.available) {
+        return NextResponse.json({ documents: [] });
+    }
+
     try {
         const { searchParams } = new URL(request.url);
         const search = searchParams.get('search');
@@ -11,7 +16,7 @@ export async function GET(request: NextRequest) {
         const limit = parseInt(searchParams.get('limit') || '50');
         const featured = searchParams.get('featured');
 
-        let query = supabase
+        let query = db.client
             .from('documents')
             .select('*, categories(*)')
             .eq('published', true)
@@ -25,7 +30,7 @@ export async function GET(request: NextRequest) {
         }
 
         if (category) {
-            const { data: cat } = await supabase
+            const { data: cat } = await db.client
                 .from('categories')
                 .select('id')
                 .eq('slug', category)
@@ -47,10 +52,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ documents: data });
     } catch (error) {
         console.error('Error fetching documents:', error);
-        return NextResponse.json(
-            { error: 'Gagal memuat dokumen' },
-            { status: 500 }
-        );
+        return NextResponse.json({ documents: [] });
     }
 }
 
@@ -59,6 +61,11 @@ export async function POST(request: NextRequest) {
     const auth = checkAdminAuth(request);
     if (!auth.authenticated) {
         return unauthorizedResponse(auth.error);
+    }
+
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
     }
 
     try {
@@ -83,26 +90,20 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const adminClient = createAdminClient();
         const insertData = {
             title,
             slug,
-            category_id: category_id || null,
-            content: content || {},
+            category_id,
+            content: content || '',
             thumbnail_url,
             meta_description,
-            published: published ?? true,
+            published: published ?? false,
             featured: featured ?? false,
-            settings: settings || {
-                showTitle: true,
-                showCategory: true,
-                showUpdated: true,
-                showToc: false,
-                contentWidth: 'medium',
-            },
+            settings: settings || {},
             tags: tags || [],
         };
-        const { data, error } = await adminClient
+
+        const { data, error } = await db.client
             .from('documents')
             .insert(insertData as never)
             .select('*, categories(*)')
@@ -118,13 +119,9 @@ export async function POST(request: NextRequest) {
             throw error;
         }
 
-        return NextResponse.json({ document: data }, { status: 201 });
+        return NextResponse.json({ document: data });
     } catch (error) {
-        console.error('Error creating document:', error);
-        return NextResponse.json(
-            { error: 'Gagal membuat dokumen' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }
 
@@ -133,6 +130,11 @@ export async function PATCH(request: NextRequest) {
     const auth = checkAdminAuth(request);
     if (!auth.authenticated) {
         return unauthorizedResponse(auth.error);
+    }
+
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
     }
 
     try {
@@ -159,7 +161,6 @@ export async function PATCH(request: NextRequest) {
             );
         }
 
-        const adminClient = createAdminClient();
         const updateData = {
             title,
             slug,
@@ -174,22 +175,34 @@ export async function PATCH(request: NextRequest) {
             tags,
             updated_at: new Date().toISOString(),
         };
-        const { data, error } = await adminClient
+
+        // Remove undefined values
+        Object.keys(updateData).forEach(key => {
+            if (updateData[key as keyof typeof updateData] === undefined) {
+                delete updateData[key as keyof typeof updateData];
+            }
+        });
+
+        const { data, error } = await db.client
             .from('documents')
             .update(updateData as never)
             .eq('id', id)
             .select('*, categories(*)')
             .single();
 
-        if (error) throw error;
+        if (error) {
+            if (error.code === '23505') {
+                return NextResponse.json(
+                    { error: 'Slug sudah digunakan' },
+                    { status: 400 }
+                );
+            }
+            throw error;
+        }
 
         return NextResponse.json({ document: data });
     } catch (error) {
-        console.error('Error updating document:', error);
-        return NextResponse.json(
-            { error: 'Gagal memperbarui dokumen' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }
 
@@ -198,6 +211,11 @@ export async function DELETE(request: NextRequest) {
     const auth = checkAdminAuth(request);
     if (!auth.authenticated) {
         return unauthorizedResponse(auth.error);
+    }
+
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
     }
 
     try {
@@ -211,8 +229,7 @@ export async function DELETE(request: NextRequest) {
             );
         }
 
-        const adminClient = createAdminClient();
-        const { error } = await adminClient
+        const { error } = await db.client
             .from('documents')
             .delete()
             .eq('id', id);
@@ -221,10 +238,6 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error deleting document:', error);
-        return NextResponse.json(
-            { error: 'Gagal menghapus dokumen' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }

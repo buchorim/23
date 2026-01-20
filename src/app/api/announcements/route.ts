@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, supabase } from '@/lib/supabase';
+import { checkDbAvailable, checkAdminDbAvailable, dbErrorResponse } from '@/lib/supabase';
 import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 interface Announcement {
@@ -15,12 +15,14 @@ interface Announcement {
 
 // GET - Fetch active announcement
 export async function GET() {
-    try {
-        if (!supabase) {
-            return NextResponse.json({ announcement: null });
-        }
+    const db = checkDbAvailable();
+    if (!db.available) {
+        // Return null announcement instead of error for public endpoint
+        return NextResponse.json({ announcement: null });
+    }
 
-        const { data, error } = await supabase
+    try {
+        const { data, error } = await db.client
             .from('announcements')
             .select('*')
             .eq('active', true)
@@ -53,12 +55,18 @@ export async function POST(request: NextRequest) {
         return unauthorizedResponse(auth.error);
     }
 
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
+    }
+
     try {
         const body = await request.json();
         const title = body.title as string;
         const message = body.message as string;
         const type = (body.type as string) || 'info';
-        const showOnce = body.show_once ?? true;
+        const active = body.active !== undefined ? body.active : true;
+        const showOnce = body.show_once !== undefined ? body.show_once : false;
         const expiresAt = body.expires_at as string | null;
 
         if (!title || !message) {
@@ -68,24 +76,16 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const adminClient = createAdminClient();
-
-        // Deactivate existing announcements
-        await adminClient
-            .from('announcements')
-            .update({ active: false } as never)
-            .eq('active', true);
-
         const insertData = {
             title,
             message,
             type,
+            active,
             show_once: showOnce,
-            active: true,
             expires_at: expiresAt,
         };
 
-        const { data, error } = await adminClient
+        const { data, error } = await db.client
             .from('announcements')
             .insert(insertData as never)
             .select()
@@ -93,13 +93,9 @@ export async function POST(request: NextRequest) {
 
         if (error) throw error;
 
-        return NextResponse.json({ announcement: data }, { status: 201 });
+        return NextResponse.json({ announcement: data });
     } catch (error) {
-        console.error('Error creating announcement:', error);
-        return NextResponse.json(
-            { error: 'Gagal membuat pengumuman' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }
 
@@ -108,6 +104,11 @@ export async function PATCH(request: NextRequest) {
     const auth = checkAdminAuth(request);
     if (!auth.authenticated) {
         return unauthorizedResponse(auth.error);
+    }
+
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
     }
 
     try {
@@ -129,8 +130,7 @@ export async function PATCH(request: NextRequest) {
             );
         }
 
-        const adminClient = createAdminClient();
-        const { data, error } = await adminClient
+        const { data, error } = await db.client
             .from('announcements')
             .update(updateData as never)
             .eq('id', id)
@@ -141,11 +141,7 @@ export async function PATCH(request: NextRequest) {
 
         return NextResponse.json({ announcement: data });
     } catch (error) {
-        console.error('Error updating announcement:', error);
-        return NextResponse.json(
-            { error: 'Gagal memperbarui pengumuman' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }
 
@@ -154,6 +150,11 @@ export async function DELETE(request: NextRequest) {
     const auth = checkAdminAuth(request);
     if (!auth.authenticated) {
         return unauthorizedResponse(auth.error);
+    }
+
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
     }
 
     try {
@@ -167,8 +168,7 @@ export async function DELETE(request: NextRequest) {
             );
         }
 
-        const adminClient = createAdminClient();
-        const { error } = await adminClient
+        const { error } = await db.client
             .from('announcements')
             .delete()
             .eq('id', id);
@@ -177,10 +177,6 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error deleting announcement:', error);
-        return NextResponse.json(
-            { error: 'Gagal menghapus pengumuman' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }

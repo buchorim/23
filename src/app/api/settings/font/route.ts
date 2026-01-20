@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, supabase } from '@/lib/supabase';
+import { checkDbAvailable, checkAdminDbAvailable, dbErrorResponse } from '@/lib/supabase';
 import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 export interface FontSetting {
@@ -10,15 +10,21 @@ export interface FontSetting {
 
 // GET /api/settings/font - Ambil font setting global
 export async function GET() {
+    const db = checkDbAvailable();
+    if (!db.available) {
+        return NextResponse.json({
+            font: { name: 'Inter', url: null, isCustom: false }
+        });
+    }
+
     try {
-        const { data, error } = await supabase
+        const { data, error } = await db.client
             .from('site_settings')
             .select('value')
             .eq('key', 'font')
             .single();
 
         if (error) {
-            // Return default if not found
             return NextResponse.json({
                 font: { name: 'Inter', url: null, isCustom: false }
             });
@@ -27,9 +33,9 @@ export async function GET() {
         return NextResponse.json({ font: (data as { value: FontSetting }).value });
     } catch (error) {
         console.error('Error fetching font setting:', error);
-        return NextResponse.json(
-            { font: { name: 'Inter', url: null, isCustom: false } }
-        );
+        return NextResponse.json({
+            font: { name: 'Inter', url: null, isCustom: false }
+        });
     }
 }
 
@@ -38,6 +44,11 @@ export async function POST(request: NextRequest) {
     const auth = checkAdminAuth(request);
     if (!auth.authenticated) {
         return unauthorizedResponse(auth.error);
+    }
+
+    const db = checkAdminDbAvailable();
+    if (!db.available) {
+        return db.response;
     }
 
     try {
@@ -51,25 +62,22 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const adminClient = createAdminClient();
-        const fontValue = { name, url: url || null, isCustom: isCustom || false };
         const upsertData = {
             key: 'font',
-            value: fontValue,
+            value: { name, url: url || null, isCustom: isCustom || false },
             updated_at: new Date().toISOString(),
         };
-        const { error } = await adminClient
+
+        const { error } = await db.client
             .from('site_settings')
             .upsert(upsertData as never, { onConflict: 'key' });
 
         if (error) throw error;
 
-        return NextResponse.json({ font: fontValue });
+        return NextResponse.json({
+            font: { name, url: url || null, isCustom: isCustom || false }
+        });
     } catch (error) {
-        console.error('Error updating font setting:', error);
-        return NextResponse.json(
-            { error: 'Gagal menyimpan pengaturan font' },
-            { status: 500 }
-        );
+        return dbErrorResponse(error);
     }
 }
