@@ -72,14 +72,22 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Update each config value
+        // Upsert each config value (insert or update)
         for (const [key, value] of Object.entries(updates)) {
             const { error } = await db.client
                 .from('traffic_config')
-                .update({ value } as never)
-                .eq('key', key);
+                .upsert({
+                    key,
+                    value,
+                    description: `Config for ${key}`
+                } as never, {
+                    onConflict: 'key'
+                });
 
-            if (error) throw error;
+            if (error) {
+                console.error(`Error upserting config ${key}:`, error);
+                throw error;
+            }
         }
 
         return NextResponse.json({ success: true });

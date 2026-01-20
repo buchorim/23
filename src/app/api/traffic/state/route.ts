@@ -44,7 +44,27 @@ export async function GET() {
             return NextResponse.json(DEFAULT_STATE);
         }
 
-        return NextResponse.json(data);
+        // Apply decay to concurrent_users for display
+        const state = data as TrafficState;
+        const lastUpdated = new Date(state.last_updated).getTime();
+        const now = Date.now();
+        const elapsedSeconds = (now - lastUpdated) / 1000;
+
+        // Decay concurrent_users: reduce by 50% every 10 seconds of inactivity
+        if (elapsedSeconds > 5) {
+            const decayFactor = Math.pow(0.5, elapsedSeconds / 10);
+            state.concurrent_users = Math.floor((state.concurrent_users || 0) * decayFactor);
+
+            // Reset spike if window expired
+            const windowSeconds = 60; // default
+            if (elapsedSeconds >= windowSeconds) {
+                state.request_count_window = 0;
+                state.current_traffic = 0;
+                state.spike_ratio = 0;
+            }
+        }
+
+        return NextResponse.json(state);
     } catch (error) {
         console.error('Get traffic state error:', error);
         return NextResponse.json(DEFAULT_STATE);
@@ -97,6 +117,26 @@ export async function POST(request: NextRequest) {
         const spikeThreshold = config.spike_trigger_percentage || 120;
         const hardOverload = config.hard_overload_percentage || 200;
         const maxConcurrent = config.max_concurrent_users || 1000;
+        const windowSeconds = config.window_seconds || 60;
+
+        // Auto-decay: calculate elapsed time since last update
+        const lastUpdated = new Date(state.last_updated).getTime();
+        const now = Date.now();
+        const elapsedSeconds = (now - lastUpdated) / 1000;
+
+        // Decay concurrent_users: reduce by 50% every 10 seconds of inactivity
+        if (elapsedSeconds > 5) {
+            const decayFactor = Math.pow(0.5, elapsedSeconds / 10);
+            const decayedConcurrent = Math.floor((state.concurrent_users || 0) * decayFactor);
+            state.concurrent_users = decayedConcurrent;
+
+            // Reset request_count_window if window expired
+            if (elapsedSeconds >= windowSeconds) {
+                state.request_count_window = 0;
+                state.current_traffic = 0;
+                state.spike_ratio = 0;
+            }
+        }
 
         if (action === 'check' || action === 'check_and_increment') {
             // First increment if check_and_increment

@@ -44,7 +44,10 @@ export function TrafficProtectionDashboard() {
             if (configRes.ok) {
                 const configData = await configRes.json();
                 setConfig(configData.config);
-                setEditConfig(configData.config);
+                // Only set editConfig on initial load to preserve user edits
+                setEditConfig(prev =>
+                    Object.keys(prev).length === 0 ? configData.config : prev
+                );
             }
         } catch (err) {
             console.error('Error fetching traffic data:', err);

@@ -6,15 +6,19 @@
  */
 
 const TARGET_URL = 'https://easystore-rho.vercel.app/';
-const TOTAL_REQUESTS = 3000;        // Total request yang akan dikirim
-const CONCURRENT_BATCH = 200;       // Request per batch (concurrent)
-const DELAY_BETWEEN_BATCH_MS = 100; // Delay antar batch (ms)
+const TOTAL_REQUESTS = 5000;        // Total request yang akan dikirim
+const CONCURRENT_BATCH = 500;       // Request per batch (concurrent)
+const DELAY_BETWEEN_BATCH_MS = 50;  // Delay antar batch (ms)
 
 // Stats
 let successCount = 0;
 let errorCount = 0;
 let blockedCount = 0; // 503/429 responses
 const responseTimes = [];
+
+// Global completion signal
+let allRequestsStarted = false;
+let completedRequests = 0;
 
 async function sendRequest(id) {
     const start = Date.now();
@@ -26,11 +30,17 @@ async function sendRequest(id) {
             },
         });
 
-        // Simulate 3 second stay time
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        // Wait until all requests are started, then stay for a bit longer
+        while (!allRequestsStarted) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        // Additional stay after all started (simulate concurrent users)
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         const elapsed = Date.now() - start;
         responseTimes.push(elapsed);
+        completedRequests++;
 
         if (response.status === 503 || response.status === 429) {
             blockedCount++;
@@ -46,6 +56,7 @@ async function sendRequest(id) {
         return response.status;
     } catch (error) {
         errorCount++;
+        completedRequests++;
         console.log(`[${id}] ❌ FAILED - ${error.message}`);
         return 0;
     }
@@ -56,7 +67,7 @@ async function runBatch(startId, count) {
     for (let i = 0; i < count; i++) {
         promises.push(sendRequest(startId + i));
     }
-    await Promise.all(promises);
+    return promises; // Don't await here, return promises
 }
 
 function sleep(ms) {
@@ -70,24 +81,33 @@ async function main() {
     console.log(`Target: ${TARGET_URL}`);
     console.log(`Total requests: ${TOTAL_REQUESTS}`);
     console.log(`Concurrent per batch: ${CONCURRENT_BATCH}`);
-    console.log(`Delay between batches: ${DELAY_BETWEEN_BATCH_MS}ms`);
+    console.log(`Mode: All requests stay until completion`);
     console.log('='.repeat(50));
     console.log('');
 
     const startTime = Date.now();
     let currentId = 1;
+    const allPromises = [];
 
+    // Start all batches quickly
     while (currentId <= TOTAL_REQUESTS) {
         const batchSize = Math.min(CONCURRENT_BATCH, TOTAL_REQUESTS - currentId + 1);
-        console.log(`\n📦 Batch ${Math.ceil(currentId / CONCURRENT_BATCH)} - Sending ${batchSize} requests...`);
+        console.log(`📦 Starting batch ${Math.ceil(currentId / CONCURRENT_BATCH)} - ${batchSize} requests...`);
 
-        await runBatch(currentId, batchSize);
+        const batchPromises = await runBatch(currentId, batchSize);
+        allPromises.push(...batchPromises);
         currentId += batchSize;
 
         if (currentId <= TOTAL_REQUESTS) {
             await sleep(DELAY_BETWEEN_BATCH_MS);
         }
     }
+
+    console.log(`\n🔥 All ${TOTAL_REQUESTS} requests started! Waiting for completion...`);
+    allRequestsStarted = true;
+
+    // Wait for all to complete
+    await Promise.all(allPromises);
 
     const totalTime = Date.now() - startTime;
     const avgResponseTime = responseTimes.length > 0
