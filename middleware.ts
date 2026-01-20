@@ -206,12 +206,12 @@ export async function middleware(request: NextRequest) {
             return NextResponse.next();
         }
 
-        // Check traffic state via API
+        // Check traffic state via API (includes increment)
         const baseUrl = request.nextUrl.origin;
         const response = await fetch(`${baseUrl}/api/traffic/state`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'check' }),
+            body: JSON.stringify({ action: 'check_and_increment' }),
         });
 
         if (response.ok) {
@@ -237,13 +237,6 @@ export async function middleware(request: NextRequest) {
                     }
                 );
             }
-
-            // Increment traffic counter (fire and forget)
-            fetch(`${baseUrl}/api/traffic/state`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'increment' }),
-            }).catch(() => { /* ignore errors */ });
         }
 
         // Allow request

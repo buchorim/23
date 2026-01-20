@@ -98,7 +98,52 @@ export async function POST(request: NextRequest) {
         const hardOverload = config.hard_overload_percentage || 200;
         const maxConcurrent = config.max_concurrent_users || 1000;
 
-        if (action === 'check') {
+        if (action === 'check' || action === 'check_and_increment') {
+            // First increment if check_and_increment
+            if (action === 'check_and_increment') {
+                const newRequestCount = (state.request_count_window || 0) + 1;
+                const newConcurrent = (state.concurrent_users || 0) + 1;
+
+                // Calculate current traffic (requests per second based on window)
+                const windowSeconds = config.window_seconds || 60;
+                const currentTraffic = newRequestCount / windowSeconds;
+
+                // Calculate spike ratio vs baseline
+                const baseline = state.baseline_traffic || 10;
+                const calculatedSpikeRatio = baseline > 0 ? (currentTraffic / baseline) * 100 : 0;
+
+                // Update baseline using exponential moving average
+                const alpha = config.baseline_alpha || 0.1;
+                const newBaseline = baseline * (1 - alpha) + currentTraffic * alpha;
+
+                // Check if overloaded
+                const nowOverloaded = calculatedSpikeRatio >= hardOverload;
+
+                // Update state in database
+                const { error: updateError } = await db.client
+                    .from('traffic_state')
+                    .update({
+                        request_count_window: newRequestCount,
+                        concurrent_users: newConcurrent,
+                        current_traffic: currentTraffic,
+                        spike_ratio: calculatedSpikeRatio,
+                        baseline_traffic: newBaseline > 0.1 ? newBaseline : baseline,
+                        is_overloaded: nowOverloaded,
+                        recovery_progress: nowOverloaded ? 0 : 1,
+                        last_updated: new Date().toISOString(),
+                    } as never)
+                    .eq('id', 1);
+
+                if (updateError) {
+                    console.error('Traffic update error:', updateError);
+                }
+
+                // Update local state for check
+                state.spike_ratio = calculatedSpikeRatio;
+                state.concurrent_users = newConcurrent;
+                state.is_overloaded = nowOverloaded;
+            }
+
             // Check if request should be allowed
             const spikeRatio = state.spike_ratio || 0;
             const concurrent = state.concurrent_users || 0;

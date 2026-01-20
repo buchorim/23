@@ -26,6 +26,9 @@ async function sendRequest(id) {
             },
         });
 
+        // Simulate 3 second stay time
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
         const elapsed = Date.now() - start;
         responseTimes.push(elapsed);
 
