@@ -6,9 +6,9 @@
  */
 
 const TARGET_URL = 'https://easystore-rho.vercel.app/';
-const TOTAL_REQUESTS = 100;        // Total request yang akan dikirim
-const CONCURRENT_BATCH = 20;       // Request per batch (concurrent)
-const DELAY_BETWEEN_BATCH_MS = 500; // Delay antar batch (ms)
+const TOTAL_REQUESTS = 3000;        // Total request yang akan dikirim
+const CONCURRENT_BATCH = 200;       // Request per batch (concurrent)
+const DELAY_BETWEEN_BATCH_MS = 100; // Delay antar batch (ms)
 
 // Stats
 let successCount = 0;

@@ -10,6 +10,7 @@ import { Modal, ConfirmModal } from '@/components/Modal';
 import { ToastContainer } from '@/components/Toast';
 import { ToastProvider, useToast } from '@/hooks/useToast';
 import { useAdmin } from '@/hooks/useAdmin';
+import { getAuthHeaders } from '@/lib/api';
 import type { DocumentWithCategory, Category } from '@/types/database';
 
 interface DocumentDetailProps {
@@ -40,7 +41,7 @@ function DocumentDetailContent({ document: initialDoc }: DocumentDetailProps) {
         try {
             const res = await fetch('/api/documents', {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     id: document.id,
                     content: editContent,
@@ -68,6 +69,7 @@ function DocumentDetailContent({ document: initialDoc }: DocumentDetailProps) {
         try {
             const res = await fetch(`/api/documents?id=${document.id}`, {
                 method: 'DELETE',
+                headers: getAuthHeaders(),
             });
 
             if (res.ok) {
