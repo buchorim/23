@@ -9,6 +9,11 @@ interface PageProps {
 }
 
 async function getDocument(slug: string): Promise<DocumentWithCategory | null> {
+    if (!supabase) {
+        console.warn('Supabase client not available');
+        return null;
+    }
+
     const { data, error } = await supabase
         .from('documents')
         .select('*, categories(*)')

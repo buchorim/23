@@ -16,6 +16,10 @@ interface Announcement {
 // GET - Fetch active announcement
 export async function GET() {
     try {
+        if (!supabase) {
+            return NextResponse.json({ announcement: null });
+        }
+
         const { data, error } = await supabase
             .from('announcements')
             .select('*')
