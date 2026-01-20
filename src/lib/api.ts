@@ -2,7 +2,7 @@
  * Helper functions for making authenticated API calls
  */
 
-const ADMIN_TOKEN_KEY = 'admin_token';
+const ADMIN_TOKEN_KEY = 'easy_store_admin_token';
 
 /**
  * Get stored admin token
