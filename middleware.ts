@@ -237,6 +237,13 @@ export async function middleware(request: NextRequest) {
                     }
                 );
             }
+
+            // Increment traffic counter (fire and forget)
+            fetch(`${baseUrl}/api/traffic/state`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'increment' }),
+            }).catch(() => { /* ignore errors */ });
         }
 
         // Allow request

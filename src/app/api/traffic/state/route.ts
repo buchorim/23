@@ -139,11 +139,34 @@ export async function POST(request: NextRequest) {
 
         if (action === 'increment') {
             // Increment request count and concurrent users
+            const newRequestCount = (state.request_count_window || 0) + 1;
+            const newConcurrent = (state.concurrent_users || 0) + 1;
+
+            // Calculate current traffic (requests per second based on window)
+            const windowSeconds = config.window_seconds || 60;
+            const currentTraffic = newRequestCount / windowSeconds;
+
+            // Calculate spike ratio vs baseline
+            const baseline = state.baseline_traffic || 10;
+            const spikeRatio = baseline > 0 ? (currentTraffic / baseline) * 100 : 0;
+
+            // Update baseline using exponential moving average (slowly adapts)
+            const alpha = config.baseline_alpha || 0.1;
+            const newBaseline = baseline * (1 - alpha) + currentTraffic * alpha;
+
+            // Check if overloaded
+            const isOverloaded = spikeRatio >= (config.hard_overload_percentage || 200);
+
             await db.client
                 .from('traffic_state')
                 .update({
-                    request_count_window: (state.request_count_window || 0) + 1,
-                    concurrent_users: (state.concurrent_users || 0) + 1,
+                    request_count_window: newRequestCount,
+                    concurrent_users: newConcurrent,
+                    current_traffic: currentTraffic,
+                    spike_ratio: spikeRatio,
+                    baseline_traffic: newBaseline > 0.1 ? newBaseline : baseline,
+                    is_overloaded: isOverloaded,
+                    recovery_progress: isOverloaded ? 0 : 1,
                     last_updated: new Date().toISOString(),
                 } as never)
                 .eq('id', 1);
