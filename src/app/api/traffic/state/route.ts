@@ -68,11 +68,13 @@ export async function POST(request: NextRequest) {
         }
 
         // Get current state
-        const { data: state, error: stateError } = await db.client
+        const { data: stateData, error: stateError } = await db.client
             .from('traffic_state')
             .select('*')
             .eq('id', 1)
             .single();
+
+        const state = stateData as TrafficState | null;
 
         if (stateError || !state) {
             return NextResponse.json({
