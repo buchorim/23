@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, supabase } from '@/lib/supabase';
+import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 // GET - Fetch site icon
 export async function GET() {
@@ -23,6 +24,11 @@ export async function GET() {
 
 // POST - Update site icon
 export async function POST(request: NextRequest) {
+    const auth = checkAdminAuth(request);
+    if (!auth.authenticated) {
+        return unauthorizedResponse(auth.error);
+    }
+
     try {
         const body = await request.json();
         const url = body.url as string;

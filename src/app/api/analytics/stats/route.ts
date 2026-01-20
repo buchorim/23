@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase';
+import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 interface StatsRow {
     page_path: string;
@@ -11,6 +12,11 @@ interface StatsRow {
 
 // GET - Get analytics stats
 export async function GET(request: NextRequest) {
+    const auth = checkAdminAuth(request);
+    if (!auth.authenticated) {
+        return unauthorizedResponse(auth.error);
+    }
+
     try {
         const { searchParams } = new URL(request.url);
         const period = searchParams.get('period') || '7d'; // 7d, 30d, all

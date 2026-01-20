@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase';
+import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 interface ConfigRow {
     key: string;
@@ -37,6 +38,11 @@ export async function GET() {
 
 // POST - Update traffic config
 export async function POST(request: NextRequest) {
+    const auth = checkAdminAuth(request);
+    if (!auth.authenticated) {
+        return unauthorizedResponse(auth.error);
+    }
+
     try {
         const body = await request.json();
         const updates = body.config as Record<string, number>;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,6 +29,11 @@ export async function GET() {
 
 // POST - Add new user icon
 export async function POST(request: NextRequest) {
+    const auth = checkAdminAuth(request);
+    if (!auth.authenticated) {
+        return unauthorizedResponse(auth.error);
+    }
+
     try {
         const body = await request.json();
         const { name, url } = body;
@@ -60,6 +66,11 @@ export async function POST(request: NextRequest) {
 
 // DELETE - Remove user icon
 export async function DELETE(request: NextRequest) {
+    const auth = checkAdminAuth(request);
+    if (!auth.authenticated) {
+        return unauthorizedResponse(auth.error);
+    }
+
     try {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');

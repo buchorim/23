@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, supabase } from '@/lib/supabase';
+import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 interface Announcement {
     id: string;
@@ -43,6 +44,11 @@ export async function GET() {
 
 // POST - Create announcement (admin)
 export async function POST(request: NextRequest) {
+    const auth = checkAdminAuth(request);
+    if (!auth.authenticated) {
+        return unauthorizedResponse(auth.error);
+    }
+
     try {
         const body = await request.json();
         const title = body.title as string;
@@ -95,6 +101,11 @@ export async function POST(request: NextRequest) {
 
 // PATCH - Update announcement (admin)
 export async function PATCH(request: NextRequest) {
+    const auth = checkAdminAuth(request);
+    if (!auth.authenticated) {
+        return unauthorizedResponse(auth.error);
+    }
+
     try {
         const body = await request.json();
         const id = body.id as string;
@@ -136,6 +147,11 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE - Delete announcement (admin)
 export async function DELETE(request: NextRequest) {
+    const auth = checkAdminAuth(request);
+    if (!auth.authenticated) {
+        return unauthorizedResponse(auth.error);
+    }
+
     try {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');

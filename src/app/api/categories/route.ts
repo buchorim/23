@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, supabase } from '@/lib/supabase';
+import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 // GET /api/categories - Ambil semua kategori
 export async function GET() {
@@ -23,6 +24,11 @@ export async function GET() {
 
 // POST /api/categories - Buat kategori baru (admin only)
 export async function POST(request: NextRequest) {
+    const auth = checkAdminAuth(request);
+    if (!auth.authenticated) {
+        return unauthorizedResponse(auth.error);
+    }
+
     try {
         const body = await request.json();
         const name = body.name as string;
@@ -67,6 +73,11 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/categories - Update kategori (admin only)
 export async function PATCH(request: NextRequest) {
+    const auth = checkAdminAuth(request);
+    if (!auth.authenticated) {
+        return unauthorizedResponse(auth.error);
+    }
+
     try {
         const body = await request.json();
         const id = body.id as string;
@@ -106,6 +117,11 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE /api/categories - Hapus kategori (admin only)
 export async function DELETE(request: NextRequest) {
+    const auth = checkAdminAuth(request);
+    if (!auth.authenticated) {
+        return unauthorizedResponse(auth.error);
+    }
+
     try {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');

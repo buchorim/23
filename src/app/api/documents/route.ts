@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, supabase } from '@/lib/supabase';
+import { checkAdminAuth, unauthorizedResponse } from '@/lib/apiAuth';
 
 // GET /api/documents - Ambil dokumen dengan filter dan search
 export async function GET(request: NextRequest) {
@@ -55,6 +56,11 @@ export async function GET(request: NextRequest) {
 
 // POST /api/documents - Buat dokumen baru (admin only)
 export async function POST(request: NextRequest) {
+    const auth = checkAdminAuth(request);
+    if (!auth.authenticated) {
+        return unauthorizedResponse(auth.error);
+    }
+
     try {
         const body = await request.json();
         const {
@@ -124,6 +130,11 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/documents - Update dokumen (admin only)
 export async function PATCH(request: NextRequest) {
+    const auth = checkAdminAuth(request);
+    if (!auth.authenticated) {
+        return unauthorizedResponse(auth.error);
+    }
+
     try {
         const body = await request.json();
         const {
@@ -184,6 +195,11 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE /api/documents - Hapus dokumen (admin only)
 export async function DELETE(request: NextRequest) {
+    const auth = checkAdminAuth(request);
+    if (!auth.authenticated) {
+        return unauthorizedResponse(auth.error);
+    }
+
     try {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
