@@ -15,6 +15,10 @@ const MESSAGES = {
         title: 'Terlalu Banyak Pengguna',
         message: 'Akses gagal karena terlalu banyak pengguna aktif. Silakan coba lagi sebentar.',
     },
+    ip_blocked: {
+        title: 'Akses Diblokir',
+        message: 'IP address Anda telah diblokir karena aktivitas mencurigakan. Hubungi administrator jika ini adalah kesalahan.',
+    },
 };
 
 // Generate overload HTML page
@@ -186,6 +190,21 @@ export async function middleware(request: NextRequest) {
         return NextResponse.next();
     }
 
+    // Admin immunity - check for admin token in cookies or headers
+    const adminToken = request.cookies.get('admin_token')?.value
+        || request.cookies.get('easy_store_admin_token')?.value
+        || request.headers.get('x-admin-token');
+
+    if (adminToken) {
+        // Admin users bypass protection
+        return NextResponse.next();
+    }
+
+    // Get client IP for blocking check
+    const clientIP = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+        || request.headers.get('x-real-ip')
+        || 'unknown';
+
     try {
         // Check cache first
         const now = Date.now();
@@ -211,7 +230,10 @@ export async function middleware(request: NextRequest) {
         const response = await fetch(`${baseUrl}/api/traffic/state`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'check_and_increment' }),
+            body: JSON.stringify({
+                action: 'check_and_increment',
+                ip: clientIP
+            }),
         });
 
         if (response.ok) {

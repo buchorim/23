@@ -139,6 +139,34 @@ export async function POST(request: NextRequest) {
         }
 
         if (action === 'check' || action === 'check_and_increment') {
+            // Check if IP is blocked
+            const ip = body.ip as string | undefined;
+            if (ip && ip !== 'unknown') {
+                interface BlockedIPRow {
+                    ip_address: string;
+                    expires_at: string | null;
+                    is_permanent: boolean;
+                }
+
+                const { data: blockedIp } = await db.client
+                    .from('blocked_ips')
+                    .select('*')
+                    .eq('ip_address', ip)
+                    .single() as { data: BlockedIPRow | null };
+
+                if (blockedIp) {
+                    // Check if block has expired (for non-permanent blocks)
+                    const isExpired = blockedIp.expires_at && new Date(blockedIp.expires_at) < new Date();
+                    if (!isExpired) {
+                        return NextResponse.json({
+                            allowed: false,
+                            reason: 'ip_blocked',
+                            state,
+                        });
+                    }
+                }
+            }
+
             // First increment if check_and_increment
             if (action === 'check_and_increment') {
                 const newRequestCount = (state.request_count_window || 0) + 1;
