@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Eye, Users, Clock, TrendingUp, Monitor, Smartphone, RefreshCw } from 'lucide-react';
+import { Eye, Users, Clock, TrendingUp, Monitor, Smartphone, RefreshCw, Download, Archive, Calendar } from 'lucide-react';
 
 interface Stats {
     totalViews: number;
@@ -29,6 +29,7 @@ export function TrafficDashboard() {
     const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [period, setPeriod] = useState('7d');
+    const [isExporting, setIsExporting] = useState(false);
 
     const fetchStats = useCallback(async () => {
         setIsLoading(true);
@@ -65,6 +66,25 @@ export function TrafficDashboard() {
 
     // Calculate max for chart scaling
     const maxViews = Math.max(...chartData.map(d => d.views), 1);
+
+    // Export handlers
+    const handleExport = async (type: 'current' | 'archive' | 'all') => {
+        setIsExporting(true);
+        try {
+            const url = `/api/analytics/export?type=${type}&format=csv`;
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `analytics_${type}_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (err) {
+            console.error('Export error:', err);
+            alert('Gagal mengekspor data');
+        } finally {
+            setIsExporting(false);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -377,6 +397,96 @@ export function TrafficDashboard() {
                     </div>
                 </div>
             )}
+
+            {/* Export Section */}
+            <div style={{
+                padding: '16px',
+                background: 'var(--bg-secondary)',
+                borderRadius: '12px',
+                marginTop: '20px',
+            }}>
+                <div style={{
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    marginBottom: '12px',
+                    color: 'var(--text-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                }}>
+                    <Download size={16} />
+                    Export Data
+                </div>
+                <p style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-muted)',
+                    marginBottom: '12px',
+                }}>
+                    Data aktif tersimpan sampai 10 tahun. Setelah itu menjadi arsip (hanya bisa didownload).
+                </p>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                        onClick={() => handleExport('current')}
+                        disabled={isExporting}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 12px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            background: 'var(--accent-blue)',
+                            color: 'white',
+                            cursor: isExporting ? 'wait' : 'pointer',
+                            fontSize: '0.8125rem',
+                            fontWeight: 500,
+                        }}
+                    >
+                        <Calendar size={14} />
+                        Data Aktif (10 Tahun)
+                    </button>
+                    <button
+                        onClick={() => handleExport('archive')}
+                        disabled={isExporting}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 12px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            background: 'var(--bg-tertiary)',
+                            color: 'var(--text-secondary)',
+                            cursor: isExporting ? 'wait' : 'pointer',
+                            fontSize: '0.8125rem',
+                            fontWeight: 500,
+                        }}
+                    >
+                        <Archive size={14} />
+                        Data Arsip
+                    </button>
+                    <button
+                        onClick={() => handleExport('all')}
+                        disabled={isExporting}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 12px',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border-medium)',
+                            background: 'transparent',
+                            color: 'var(--text-secondary)',
+                            cursor: isExporting ? 'wait' : 'pointer',
+                            fontSize: '0.8125rem',
+                            fontWeight: 500,
+                        }}
+                    >
+                        <Download size={14} />
+                        Semua Data
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
