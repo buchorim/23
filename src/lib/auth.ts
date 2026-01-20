@@ -1,45 +1,79 @@
-// Konstanta untuk admin authentication
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@easy.store';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'secret123';
+// Client-side auth utilities
+// Token validation happens server-side via /api/auth/admin
+
+const STORAGE_KEY = 'easy_store_admin_token';
 
 /**
- * Decode dan validasi admin credentials dari URL parameter
- * Format: ?admin=BASE64(email:password)
+ * Get stored admin token
  */
-export function validateAdminCredentials(encodedCredentials: string): boolean {
+export function getAdminToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(STORAGE_KEY);
+}
+
+/**
+ * Set admin token
+ */
+export function setAdminToken(token: string | null): void {
+    if (typeof window === 'undefined') return;
+    if (token) {
+        localStorage.setItem(STORAGE_KEY, token);
+    } else {
+        localStorage.removeItem(STORAGE_KEY);
+    }
+}
+
+/**
+ * Validate admin token via API
+ */
+export async function validateAdminToken(): Promise<boolean> {
+    const token = getAdminToken();
+    if (!token) return false;
+
     try {
-        const decoded = atob(encodedCredentials);
-        const [email, password] = decoded.split(':');
-        return email === ADMIN_EMAIL && password === ADMIN_PASSWORD;
+        const res = await fetch('/api/auth/admin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token }),
+        });
+
+        if (!res.ok) return false;
+
+        const data = await res.json();
+        if (!data.valid) {
+            // Token invalid, remove it
+            setAdminToken(null);
+            return false;
+        }
+
+        return true;
     } catch {
         return false;
     }
 }
 
 /**
- * Generate encoded admin credentials untuk URL
+ * Login with password
  */
-export function generateAdminToken(): string {
-    return btoa(`${ADMIN_EMAIL}:${ADMIN_PASSWORD}`);
-}
+export async function loginWithPassword(password: string): Promise<boolean> {
+    try {
+        const res = await fetch('/api/auth/admin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password }),
+        });
 
-/**
- * Check admin status dari localStorage
- */
-export function isAdminAuthenticated(): boolean {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem('easy_store_admin') === 'true';
-}
+        if (!res.ok) return false;
 
-/**
- * Set admin session
- */
-export function setAdminSession(authenticated: boolean): void {
-    if (typeof window === 'undefined') return;
-    if (authenticated) {
-        localStorage.setItem('easy_store_admin', 'true');
-    } else {
-        localStorage.removeItem('easy_store_admin');
+        const data = await res.json();
+        if (data.token) {
+            setAdminToken(data.token);
+            return true;
+        }
+
+        return false;
+    } catch {
+        return false;
     }
 }
 
@@ -47,5 +81,5 @@ export function setAdminSession(authenticated: boolean): void {
  * Logout admin
  */
 export function logoutAdmin(): void {
-    setAdminSession(false);
+    setAdminToken(null);
 }
