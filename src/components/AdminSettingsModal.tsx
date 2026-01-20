@@ -268,6 +268,10 @@ export function AdminSettingsModal({ isOpen, onClose }: AdminSettingsModalProps)
                     display: 'flex',
                     borderBottom: '1px solid var(--border-light)',
                     padding: '0 20px',
+                    overflowX: 'auto',
+                    WebkitOverflowScrolling: 'touch',
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none',
                 }}>
                     {[
                         { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -292,6 +296,8 @@ export function AdminSettingsModal({ isOpen, onClose }: AdminSettingsModalProps)
                                 fontSize: '0.875rem',
                                 fontWeight: 500,
                                 transition: 'all 0.2s',
+                                flexShrink: 0,
+                                whiteSpace: 'nowrap',
                             }}
                         >
                             <tab.icon size={16} />

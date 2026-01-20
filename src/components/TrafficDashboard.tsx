@@ -34,12 +34,21 @@ export function TrafficDashboard() {
     const fetchStats = useCallback(async () => {
         setIsLoading(true);
         try {
-            const res = await fetch(`/api/analytics/stats?period=${period}`);
+            // Get admin token from localStorage
+            const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') || localStorage.getItem('easy_store_admin_token') : null;
+            const headers: HeadersInit = {};
+            if (token) {
+                headers['X-Admin-Token'] = token;
+            }
+
+            const res = await fetch(`/api/analytics/stats?period=${period}`, { headers });
             if (res.ok) {
                 const data = await res.json();
                 setStats(data.stats);
                 setTopPages(data.topPages);
                 setChartData(data.chartData);
+            } else {
+                console.error('Analytics API error:', res.status);
             }
         } catch (err) {
             console.error('Error fetching analytics:', err);
