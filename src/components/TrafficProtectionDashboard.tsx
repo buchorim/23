@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Activity, Users, TrendingUp, Gauge, RefreshCw, Settings, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Activity, Users, TrendingUp, Gauge, RefreshCw, Settings, AlertTriangle, CheckCircle, Ban, Trash2, Plus } from 'lucide-react';
+import { getAuthHeaders } from '@/lib/api';
 
 interface TrafficState {
     baseline_traffic: number;
@@ -21,6 +22,15 @@ interface TrafficConfig {
     window_seconds: number;
 }
 
+interface BlockedIP {
+    id: string;
+    ip_address: string;
+    reason: string;
+    blocked_at: string;
+    expires_at: string | null;
+    is_permanent: boolean;
+}
+
 export function TrafficProtectionDashboard() {
     const [state, setState] = useState<TrafficState | null>(null);
     const [config, setConfig] = useState<TrafficConfig | null>(null);
@@ -28,6 +38,13 @@ export function TrafficProtectionDashboard() {
     const [showConfig, setShowConfig] = useState(false);
     const [editConfig, setEditConfig] = useState<Partial<TrafficConfig>>({});
     const [isSaving, setIsSaving] = useState(false);
+
+    // IP Blocking state
+    const [blockedIps, setBlockedIps] = useState<BlockedIP[]>([]);
+    const [showIpManager, setShowIpManager] = useState(false);
+    const [newIpToBlock, setNewIpToBlock] = useState('');
+    const [blockReason, setBlockReason] = useState('');
+    const [isBlockingIp, setIsBlockingIp] = useState(false);
 
     const fetchData = useCallback(async () => {
         try {
@@ -56,11 +73,64 @@ export function TrafficProtectionDashboard() {
         }
     }, []);
 
+    const fetchBlockedIps = useCallback(async () => {
+        try {
+            const res = await fetch('/api/traffic/blocked-ips');
+            if (res.ok) {
+                const data = await res.json();
+                setBlockedIps(data.blockedIps || []);
+            }
+        } catch (err) {
+            console.error('Error fetching blocked IPs:', err);
+        }
+    }, []);
+
     useEffect(() => {
         fetchData();
+        fetchBlockedIps();
         const interval = setInterval(fetchData, 5000);
         return () => clearInterval(interval);
-    }, [fetchData]);
+    }, [fetchData, fetchBlockedIps]);
+
+    const handleBlockIp = async () => {
+        if (!newIpToBlock.trim()) return;
+        setIsBlockingIp(true);
+        try {
+            const res = await fetch('/api/traffic/blocked-ips', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    ip_address: newIpToBlock.trim(),
+                    reason: blockReason || 'Manually blocked',
+                    is_permanent: false,
+                    expires_hours: 24,
+                }),
+            });
+            if (res.ok) {
+                setNewIpToBlock('');
+                setBlockReason('');
+                fetchBlockedIps();
+            }
+        } catch (err) {
+            console.error('Error blocking IP:', err);
+        } finally {
+            setIsBlockingIp(false);
+        }
+    };
+
+    const handleUnblockIp = async (id: string) => {
+        try {
+            const res = await fetch(`/api/traffic/blocked-ips?id=${id}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders(),
+            });
+            if (res.ok) {
+                fetchBlockedIps();
+            }
+        } catch (err) {
+            console.error('Error unblocking IP:', err);
+        }
+    };
 
     const handleSaveConfig = async () => {
         setIsSaving(true);
@@ -375,6 +445,152 @@ export function TrafficProtectionDashboard() {
                     </button>
                 </div>
             )}
+
+            {/* IP Manager Panel */}
+            <div style={{ marginTop: '20px' }}>
+                <button
+                    onClick={() => setShowIpManager(!showIpManager)}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        width: '100%',
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-medium)',
+                        background: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.875rem',
+                        cursor: 'pointer',
+                    }}
+                >
+                    <Ban size={16} />
+                    IP Blocking ({blockedIps.length})
+                </button>
+
+                {showIpManager && (
+                    <div style={{
+                        marginTop: '12px',
+                        padding: '16px',
+                        background: 'var(--bg-secondary)',
+                        borderRadius: '12px',
+                    }}>
+                        {/* Add IP Form */}
+                        <div style={{ marginBottom: '16px' }}>
+                            <div style={{ fontSize: '0.8125rem', fontWeight: 600, marginBottom: '8px' }}>
+                                Block IP Address
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                <input
+                                    type="text"
+                                    placeholder="192.168.1.100"
+                                    value={newIpToBlock}
+                                    onChange={(e) => setNewIpToBlock(e.target.value)}
+                                    style={{
+                                        flex: 1,
+                                        minWidth: '120px',
+                                        padding: '8px 12px',
+                                        borderRadius: '6px',
+                                        border: '1px solid var(--border-medium)',
+                                        background: 'var(--bg-primary)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '0.875rem',
+                                    }}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Alasan (opsional)"
+                                    value={blockReason}
+                                    onChange={(e) => setBlockReason(e.target.value)}
+                                    style={{
+                                        flex: 1,
+                                        minWidth: '120px',
+                                        padding: '8px 12px',
+                                        borderRadius: '6px',
+                                        border: '1px solid var(--border-medium)',
+                                        background: 'var(--bg-primary)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '0.875rem',
+                                    }}
+                                />
+                                <button
+                                    onClick={handleBlockIp}
+                                    disabled={isBlockingIp || !newIpToBlock.trim()}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '8px 16px',
+                                        borderRadius: '6px',
+                                        border: 'none',
+                                        background: '#ef4444',
+                                        color: 'white',
+                                        fontSize: '0.875rem',
+                                        cursor: isBlockingIp ? 'wait' : 'pointer',
+                                    }}
+                                >
+                                    <Plus size={14} />
+                                    Block
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Blocked IPs List */}
+                        <div style={{ fontSize: '0.8125rem', fontWeight: 600, marginBottom: '8px' }}>
+                            Blocked IPs
+                        </div>
+                        {blockedIps.length === 0 ? (
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                                Tidak ada IP yang diblokir
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+                                {blockedIps.map((ip) => (
+                                    <div
+                                        key={ip.id}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            padding: '8px 12px',
+                                            background: 'var(--bg-primary)',
+                                            borderRadius: '6px',
+                                            border: '1px solid var(--border-light)',
+                                        }}
+                                    >
+                                        <div>
+                                            <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                                                {ip.ip_address}
+                                            </div>
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                {ip.reason}
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => handleUnblockIp(ip.id)}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                padding: '4px 8px',
+                                                borderRadius: '4px',
+                                                border: '1px solid var(--border-medium)',
+                                                background: 'transparent',
+                                                color: 'var(--text-secondary)',
+                                                fontSize: '0.75rem',
+                                                cursor: 'pointer',
+                                            }}
+                                        >
+                                            <Trash2 size={12} />
+                                            Unblock
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
 
             <style>{`
                 @keyframes pulse {
