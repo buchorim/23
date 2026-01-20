@@ -68,13 +68,14 @@ export async function POST(request: NextRequest) {
             isCustom: true,
         };
 
+        const upsertData = {
+            key: 'font',
+            value: fontValue,
+            updated_at: new Date().toISOString(),
+        };
         await adminClient
             .from('site_settings')
-            .upsert({
-                key: 'font',
-                value: fontValue,
-                updated_at: new Date().toISOString(),
-            }, { onConflict: 'key' });
+            .upsert(upsertData as never, { onConflict: 'key' });
 
         return NextResponse.json({
             font: fontValue,

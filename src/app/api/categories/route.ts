@@ -25,7 +25,9 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { name, slug, icon } = body;
+        const name = body.name as string;
+        const slug = body.slug as string;
+        const icon = (body.icon as string) || '📦';
 
         if (!name || !slug) {
             return NextResponse.json(
@@ -35,9 +37,11 @@ export async function POST(request: NextRequest) {
         }
 
         const adminClient = createAdminClient();
+        const insertData = { name, slug, icon };
+
         const { data, error } = await adminClient
             .from('categories')
-            .insert({ name, slug, icon: icon || '📦' })
+            .insert(insertData as never)
             .select()
             .single();
 
@@ -65,7 +69,13 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
     try {
         const body = await request.json();
-        const { id, name, slug, icon, display_order } = body;
+        const id = body.id as string;
+        const updateData = {
+            name: body.name as string | undefined,
+            slug: body.slug as string | undefined,
+            icon: body.icon as string | undefined,
+            display_order: body.display_order as number | undefined,
+        };
 
         if (!id) {
             return NextResponse.json(
@@ -77,7 +87,7 @@ export async function PATCH(request: NextRequest) {
         const adminClient = createAdminClient();
         const { data, error } = await adminClient
             .from('categories')
-            .update({ name, slug, icon, display_order })
+            .update(updateData as never)
             .eq('id', id)
             .select()
             .single();

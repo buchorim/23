@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
                 .single();
 
             if (cat) {
-                query = query.eq('category_id', cat.id);
+                query = query.eq('category_id', (cat as { id: string }).id);
             }
         }
 
@@ -78,26 +78,27 @@ export async function POST(request: NextRequest) {
         }
 
         const adminClient = createAdminClient();
+        const insertData = {
+            title,
+            slug,
+            category_id: category_id || null,
+            content: content || {},
+            thumbnail_url,
+            meta_description,
+            published: published ?? true,
+            featured: featured ?? false,
+            settings: settings || {
+                showTitle: true,
+                showCategory: true,
+                showUpdated: true,
+                showToc: false,
+                contentWidth: 'medium',
+            },
+            tags: tags || [],
+        };
         const { data, error } = await adminClient
             .from('documents')
-            .insert({
-                title,
-                slug,
-                category_id: category_id || null,
-                content: content || {},
-                thumbnail_url,
-                meta_description,
-                published: published ?? true,
-                featured: featured ?? false,
-                settings: settings || {
-                    showTitle: true,
-                    showCategory: true,
-                    showUpdated: true,
-                    showToc: false,
-                    contentWidth: 'medium',
-                },
-                tags: tags || [],
-            })
+            .insert(insertData as never)
             .select('*, categories(*)')
             .single();
 
@@ -148,22 +149,23 @@ export async function PATCH(request: NextRequest) {
         }
 
         const adminClient = createAdminClient();
+        const updateData = {
+            title,
+            slug,
+            category_id,
+            content,
+            thumbnail_url,
+            meta_description,
+            published,
+            featured,
+            display_order,
+            settings,
+            tags,
+            updated_at: new Date().toISOString(),
+        };
         const { data, error } = await adminClient
             .from('documents')
-            .update({
-                title,
-                slug,
-                category_id,
-                content,
-                thumbnail_url,
-                meta_description,
-                published,
-                featured,
-                display_order,
-                settings,
-                tags,
-                updated_at: new Date().toISOString(),
-            })
+            .update(updateData as never)
             .eq('id', id)
             .select('*, categories(*)')
             .single();

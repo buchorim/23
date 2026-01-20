@@ -23,7 +23,7 @@ export async function GET() {
             });
         }
 
-        return NextResponse.json({ font: data.value });
+        return NextResponse.json({ font: (data as { value: FontSetting }).value });
     } catch (error) {
         console.error('Error fetching font setting:', error);
         return NextResponse.json(
@@ -47,14 +47,14 @@ export async function POST(request: NextRequest) {
 
         const adminClient = createAdminClient();
         const fontValue = { name, url: url || null, isCustom: isCustom || false };
-
+        const upsertData = {
+            key: 'font',
+            value: fontValue,
+            updated_at: new Date().toISOString(),
+        };
         const { error } = await adminClient
             .from('site_settings')
-            .upsert({
-                key: 'font',
-                value: fontValue,
-                updated_at: new Date().toISOString(),
-            }, { onConflict: 'key' });
+            .upsert(upsertData as never, { onConflict: 'key' });
 
         if (error) throw error;
 

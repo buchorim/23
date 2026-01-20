@@ -39,9 +39,10 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        const insertData = { name: name as string, url: url as string };
         const { data, error } = await supabase
             .from('user_icons')
-            .insert({ name, url })
+            .insert(insertData as never)
             .select()
             .single();
 

@@ -1,3 +1,57 @@
+export interface CategoryInsert {
+    name: string;
+    slug: string;
+    icon?: string;
+    display_order?: number;
+}
+
+export interface CategoryUpdate {
+    name?: string;
+    slug?: string;
+    icon?: string;
+    display_order?: number;
+}
+
+export interface DocumentInsert {
+    category_id?: string | null;
+    title: string;
+    slug: string;
+    content?: Record<string, unknown>;
+    thumbnail_url?: string | null;
+    meta_description?: string | null;
+    published?: boolean;
+    featured?: boolean;
+    display_order?: number;
+    settings?: DocumentSettings;
+    tags?: string[];
+}
+
+export interface DocumentUpdate {
+    category_id?: string | null;
+    title?: string;
+    slug?: string;
+    content?: Record<string, unknown>;
+    thumbnail_url?: string | null;
+    meta_description?: string | null;
+    published?: boolean;
+    featured?: boolean;
+    display_order?: number;
+    settings?: DocumentSettings;
+    tags?: string[];
+}
+
+export interface UserIcon {
+    id: string;
+    name: string;
+    url: string;
+    created_at: string;
+}
+
+export interface UserIconInsert {
+    name: string;
+    url: string;
+}
+
 export type Database = {
     public: {
         Tables: {
@@ -10,22 +64,8 @@ export type Database = {
                     display_order: number;
                     created_at: string;
                 };
-                Insert: {
-                    id?: string;
-                    name: string;
-                    slug: string;
-                    icon?: string;
-                    display_order?: number;
-                    created_at?: string;
-                };
-                Update: {
-                    id?: string;
-                    name?: string;
-                    slug?: string;
-                    icon?: string;
-                    display_order?: number;
-                    created_at?: string;
-                };
+                Insert: CategoryInsert;
+                Update: CategoryUpdate;
             };
             documents: {
                 Row: {
@@ -44,37 +84,28 @@ export type Database = {
                     created_at: string;
                     updated_at: string;
                 };
+                Insert: DocumentInsert;
+                Update: DocumentUpdate;
+            };
+            user_icons: {
+                Row: UserIcon;
+                Insert: UserIconInsert;
+                Update: Partial<UserIconInsert>;
+            };
+            site_settings: {
+                Row: {
+                    id: string;
+                    key: string;
+                    value: Record<string, unknown>;
+                    updated_at: string;
+                };
                 Insert: {
-                    id?: string;
-                    category_id?: string | null;
-                    title: string;
-                    slug: string;
-                    content?: Record<string, unknown>;
-                    thumbnail_url?: string | null;
-                    meta_description?: string | null;
-                    published?: boolean;
-                    featured?: boolean;
-                    display_order?: number;
-                    settings?: DocumentSettings;
-                    tags?: string[];
-                    created_at?: string;
-                    updated_at?: string;
+                    key: string;
+                    value: Record<string, unknown>;
                 };
                 Update: {
-                    id?: string;
-                    category_id?: string | null;
-                    title?: string;
-                    slug?: string;
-                    content?: Record<string, unknown>;
-                    thumbnail_url?: string | null;
-                    meta_description?: string | null;
-                    published?: boolean;
-                    featured?: boolean;
-                    display_order?: number;
-                    settings?: DocumentSettings;
-                    tags?: string[];
-                    created_at?: string;
-                    updated_at?: string;
+                    key?: string;
+                    value?: Record<string, unknown>;
                 };
             };
         };
