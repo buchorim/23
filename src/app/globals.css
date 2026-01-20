@@ -1256,7 +1256,9 @@ a:hover {
   }
 
   .search-container {
-    display: none;
+    flex: 1;
+    max-width: none;
+    min-width: 120px;
   }
 
   .document-grid {
