@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Check file size (max 50MB)
-        const MAX_SIZE = 50 * 1024 * 1024;
+        // Check file size (max 100MB)
+        const MAX_SIZE = 100 * 1024 * 1024;
         if (file.size > MAX_SIZE) {
             return NextResponse.json(
                 { error: 'Ukuran file terlalu besar. Maksimal 50MB.' },
